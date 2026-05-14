@@ -62,13 +62,20 @@
                 <textarea id="country-desc-input" rows="6" placeholder="Escreve aqui as tuas memórias desta viagem..."></textarea>
                 
                 <div style="display: flex; gap: 1rem; margin-bottom: 2rem;">
-                    <button id="save-country-data">Guardar Alterações</button>
-                    <button id="upload-photo-btn" style="background: var(--accent);">Adicionar Foto</button>
+                    <button id="save-country-data">Guardar Descrição</button>
+                </div>
+                
+                <div style="background: var(--glass); padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1rem; font-size: 1.2rem;">Criar Novo Álbum</h3>
+                    <div style="display: flex; gap: 1rem;">
+                        <input type="text" id="new-album-name" placeholder="Nome do Álbum (ex: 2024)" style="flex: 1;">
+                        <button id="create-album-btn" style="background: var(--accent);">Criar Álbum</button>
+                    </div>
                 </div>
             </div>
 
-            <div id="country-photos" class="photo-grid">
-                <!-- Photos will be injected here -->
+            <div id="country-albums-container">
+                <!-- Albums will be injected here -->
             </div>
         </div>
     </div>

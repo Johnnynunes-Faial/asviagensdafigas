@@ -110,31 +110,155 @@ function getCountryColor(id) {
 // --- COUNTRY MODAL ---
 function openCountryModal(country) {
     selectedCountryId = country.id;
-    const data = userData[selectedCountryId] || { description: '', photos: [] };
+    let data = userData[selectedCountryId] || { description: '', albums: [] };
+    
+    // Migrate old data if necessary
+    if (data.photos && !data.albums) {
+        data.albums = data.photos.length > 0 ? [{ id: Date.now().toString(), name: 'Fotos (Geral)', photos: data.photos }] : [];
+        delete data.photos;
+        saveData();
+    }
+    if (!data.albums) data.albums = [];
     
     document.getElementById('country-name').textContent = country.properties.name;
     document.getElementById('country-desc-display').textContent = data.description || "Nenhuma descrição ainda.";
     document.getElementById('country-desc-input').value = data.description;
     
-    currentPhotos = data.photos;
-    renderPhotos(data.photos);
+    renderAlbums(data.albums);
     
     document.getElementById('country-modal').classList.add('active');
 }
 
-function renderPhotos(photos) {
-    const container = document.getElementById('country-photos');
+function renderAlbums(albums) {
+    const container = document.getElementById('country-albums-container');
     container.innerHTML = '';
-    photos.forEach((url, index) => {
-        const div = document.createElement('div');
-        div.className = 'photo-item';
-        div.innerHTML = `<img src="${url}" alt="Foto de viagem">`;
-        div.onclick = (e) => {
-            e.stopPropagation();
-            openLightbox(index);
-        };
-        container.appendChild(div);
+    currentPhotos = []; // flat array for lightbox
+    
+    if (albums.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 2rem;">Ainda não há álbuns para este país.</p>';
+    }
+    
+    albums.forEach(album => {
+        const albumDiv = document.createElement('div');
+        albumDiv.style.marginBottom = '2.5rem';
+        albumDiv.style.background = 'rgba(255, 255, 255, 0.02)';
+        albumDiv.style.padding = '1.5rem';
+        albumDiv.style.borderRadius = '0.5rem';
+        
+        // Header
+        const headerDiv = document.createElement('div');
+        headerDiv.style.display = 'flex';
+        headerDiv.style.justifyContent = 'space-between';
+        headerDiv.style.alignItems = 'center';
+        headerDiv.style.marginBottom = '1.5rem';
+        headerDiv.style.flexWrap = 'wrap';
+        headerDiv.style.gap = '1rem';
+        
+        let titleHtml = '';
+        if (isLoggedIn) {
+            titleHtml = `<input type="text" value="${album.name}" class="album-title-input" data-id="${album.id}" style="font-size: 1.5rem; font-weight: 600; background: transparent; border: none; border-bottom: 2px solid var(--text-muted); color: var(--text-light); width: 250px; padding-bottom: 0.2rem;">`;
+        } else {
+            titleHtml = `<h3 style="font-size: 1.5rem; font-weight: 600; color: var(--text-light); margin: 0;">${album.name}</h3>`;
+        }
+        
+        let actionsHtml = '';
+        if (isLoggedIn) {
+            actionsHtml = `
+                <button class="upload-album-photo-btn" data-id="${album.id}" style="background: var(--accent); padding: 0.5rem 1rem; font-size: 0.9rem;">Adicionar Foto</button>
+                <button class="delete-album-btn" data-id="${album.id}" style="background: #ef4444; padding: 0.5rem 1rem; font-size: 0.9rem; margin-left: 0.5rem;">Apagar Álbum</button>
+            `;
+        }
+        
+        headerDiv.innerHTML = `<div>${titleHtml}</div><div>${actionsHtml}</div>`;
+        albumDiv.appendChild(headerDiv);
+        
+        // Photos Grid
+        const gridDiv = document.createElement('div');
+        gridDiv.className = 'photo-grid';
+        
+        album.photos.forEach(url => {
+            const globalIndex = currentPhotos.length;
+            currentPhotos.push(url);
+            
+            const photoDiv = document.createElement('div');
+            photoDiv.className = 'photo-item';
+            photoDiv.style.position = 'relative';
+            photoDiv.innerHTML = `<img src="${url}" alt="Foto de viagem">`;
+            
+            if (isLoggedIn) {
+                const deletePhotoBtn = document.createElement('button');
+                deletePhotoBtn.innerHTML = '&times;';
+                deletePhotoBtn.style.position = 'absolute';
+                deletePhotoBtn.style.top = '0.5rem';
+                deletePhotoBtn.style.right = '0.5rem';
+                deletePhotoBtn.style.background = 'rgba(239, 68, 68, 0.9)';
+                deletePhotoBtn.style.color = 'white';
+                deletePhotoBtn.style.border = 'none';
+                deletePhotoBtn.style.borderRadius = '50%';
+                deletePhotoBtn.style.width = '30px';
+                deletePhotoBtn.style.height = '30px';
+                deletePhotoBtn.style.cursor = 'pointer';
+                deletePhotoBtn.style.fontSize = '1.2rem';
+                deletePhotoBtn.style.display = 'flex';
+                deletePhotoBtn.style.alignItems = 'center';
+                deletePhotoBtn.style.justifyContent = 'center';
+                deletePhotoBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (confirm('Apagar esta foto?')) {
+                        album.photos = album.photos.filter(p => p !== url);
+                        saveData();
+                        renderAlbums(userData[selectedCountryId].albums);
+                    }
+                };
+                photoDiv.appendChild(deletePhotoBtn);
+            }
+            
+            photoDiv.onclick = (e) => {
+                e.stopPropagation();
+                openLightbox(globalIndex);
+            };
+            gridDiv.appendChild(photoDiv);
+        });
+        
+        if (album.photos.length === 0) {
+            gridDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem; grid-column: 1 / -1;">Nenhuma foto neste álbum.</p>';
+        }
+        
+        albumDiv.appendChild(gridDiv);
+        container.appendChild(albumDiv);
     });
+    
+    // Attach Listeners
+    if (isLoggedIn) {
+        document.querySelectorAll('.album-title-input').forEach(input => {
+            input.onchange = (e) => {
+                const id = e.target.getAttribute('data-id');
+                const album = userData[selectedCountryId].albums.find(a => a.id === id);
+                if (album) {
+                    album.name = e.target.value.trim() || 'Sem Nome';
+                    saveData();
+                }
+            };
+        });
+        
+        document.querySelectorAll('.upload-album-photo-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                const id = e.target.getAttribute('data-id');
+                uploadPhotoToAlbum(id);
+            };
+        });
+
+        document.querySelectorAll('.delete-album-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                if (confirm('Tens a certeza que queres apagar este álbum e todas as suas fotos?')) {
+                    const id = e.target.getAttribute('data-id');
+                    userData[selectedCountryId].albums = userData[selectedCountryId].albums.filter(a => a.id !== id);
+                    saveData();
+                    renderAlbums(userData[selectedCountryId].albums);
+                }
+            };
+        });
+    }
 }
 
 // --- LIGHTBOX ---
@@ -188,7 +312,38 @@ function saveData() {
 }
 
 // --- CLOUDINARY INTEGRATION ---
-document.getElementById('upload-photo-btn').onclick = () => {
+document.getElementById('create-album-btn').onclick = () => {
+    const nameInput = document.getElementById('new-album-name');
+    const name = nameInput.value.trim();
+    if (!name) {
+        alert('Por favor insere um nome para o álbum.');
+        return;
+    }
+    if (!selectedCountryId) return;
+    
+    if (!userData[selectedCountryId]) {
+        userData[selectedCountryId] = { description: '', albums: [] };
+    }
+    if (!userData[selectedCountryId].albums) {
+        userData[selectedCountryId].albums = [];
+    }
+    
+    userData[selectedCountryId].albums.unshift({
+        id: Date.now().toString(),
+        name: name,
+        photos: []
+    });
+    
+    saveData();
+    nameInput.value = '';
+    renderAlbums(userData[selectedCountryId].albums);
+    
+    d3.select(`.country-path-${selectedCountryId}`)
+        .classed('visited', true)
+        .style('fill', getCountryColor(selectedCountryId));
+};
+
+function uploadPhotoToAlbum(albumId) {
     const myWidget = cloudinary.createUploadWidget({
         cloudName: CLOUDINARY_CLOUD_NAME, 
         apiKey: CLOUDINARY_API_KEY,
@@ -196,21 +351,20 @@ document.getElementById('upload-photo-btn').onclick = () => {
     }, (error, result) => { 
         if (!error && result && result.event === "success") { 
             const photoUrl = result.info.secure_url;
-            if (!userData[selectedCountryId]) {
-                userData[selectedCountryId] = { description: '', photos: [] };
+            const album = userData[selectedCountryId].albums.find(a => a.id === albumId);
+            if (album) {
+                album.photos.push(photoUrl);
+                saveData();
+                renderAlbums(userData[selectedCountryId].albums);
+                
+                d3.select(`.country-path-${selectedCountryId}`)
+                    .classed('visited', true)
+                    .style('fill', getCountryColor(selectedCountryId));
             }
-            userData[selectedCountryId].photos.push(photoUrl);
-            saveData();
-            currentPhotos = userData[selectedCountryId].photos;
-            renderPhotos(currentPhotos);
-            
-            d3.select(`.country-path-${selectedCountryId}`)
-                .classed('visited', true)
-                .style('fill', getCountryColor(selectedCountryId));
         }
     });
     myWidget.open();
-};
+}
 
 document.getElementById('upload-main-btn').onclick = () => {
     const myWidget = cloudinary.createUploadWidget({
